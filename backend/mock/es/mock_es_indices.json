@@ -1,0 +1,53 @@
+[
+    {
+        "index": "wa_annotator_db_t_api_access_log"
+    },
+    {
+        "index": "wa_annotator_db_t_web_login_log"
+    },
+    {
+        "index": "wa_annotator_db_t_web_operation_log"
+    },
+    {
+        "index": "wa_annotator_db_t_ip_base_info"
+    },
+    {
+        "index": "wa_annotator_db_t_ip_ioc"
+    },
+    {
+        "index": "wa_annotator_db_t_domain_icp"
+    },
+    {
+        "index": "wa_annotator_db_t_domain_whois"
+    },
+    {
+        "index": "wa_annotator_db_t_domain_ioc"
+    },
+    {
+        "index": "wa_annotator_db_t_unit_baseinfo"
+    },
+    {
+        "index": "wa_annotator_db_t_unit_iplist"
+    },
+    {
+        "index": "wa_annotator_db_t_unit_domaincertlist"
+    },
+    {
+        "index": "wa_annotator_db_t_x509certinfo"
+    },
+    {
+        "index": "wa_annotator_db_t_app_baseinfo"
+    },
+    {
+        "index": "wa_annotator_db_t_app_sdomain_list"
+    },
+    {
+        "index": "wa_annotator_db_t_app_sip_list"
+    },
+    {
+        "index": "wa_annotator_db_t_app_cert_list"
+    },
+    {
+        "index": "wa_annotator_db_t_app_userid_list"
+    }
+]

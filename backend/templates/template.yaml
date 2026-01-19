@@ -81,6 +81,9 @@ template:
       
       <Rules>
         <rule>
+          关闭思考过程
+        </rule>
+        <rule>
           请使用语言：{lang} 回答，若有深度思考过程，则思考过程也需要使用 {lang} 输出
           <note>即使示例中显示了中文消息，在实际生成时也必须翻译成英文</note>
         </rule>
@@ -298,6 +301,9 @@ template:
       
       你必须遵守以下规则:
       <Rules>
+        <rule>
+          关闭思考过程
+        </rule>
         <rule>
           请使用语言：{lang} 回答，若有深度思考过程，则思考过程也需要使用 {lang} 输出
         </rule>

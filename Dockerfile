@@ -8,6 +8,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN mkdir -p ${APP_HOME} ${UI_HOME}
 
+# 配置 npm 国内镜像源
+RUN npm config set registry https://registry.npmmirror.com
+
 COPY frontend /tmp/frontend
 RUN cd /tmp/frontend && npm install && npm run build && mv dist ${UI_HOME}/dist
 
@@ -23,6 +26,10 @@ ENV PATH="${APP_HOME}/.venv/bin:$PATH"
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV DEBIAN_FRONTEND=noninteractive
+# 配置 uv/pip 国内镜像源
+ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
 # Create necessary directories
 RUN mkdir -p ${APP_HOME} ${UI_HOME}
@@ -48,6 +55,12 @@ FROM registry.cn-qingdao.aliyuncs.com/dataease/sqlbot-base:latest AS ssr-builder
 
 WORKDIR /app
 
+# 配置 apt 国内镜像源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential python3 pkg-config \
@@ -55,10 +68,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpixman-1-dev libfreetype6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# configure npm
+# configure npm 国内镜像源
 RUN npm config set fund false \
     && npm config set audit false \
-    && npm config set progress false
+    && npm config set progress false \
+    && npm config set registry https://registry.npmmirror.com
 
 COPY g2-ssr/app.js g2-ssr/package.json /app/
 COPY g2-ssr/charts/* /app/charts/
@@ -66,6 +80,17 @@ RUN npm install
 
 # Runtime stage
 FROM registry.cn-qingdao.aliyuncs.com/dataease/sqlbot-python-pg:latest
+
+# 配置 apt 国内镜像源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
+
+# 安装 vim（仅运行时需要）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends vim && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone
@@ -75,6 +100,9 @@ ENV PYTHONUNBUFFERED=1
 ENV SQLBOT_HOME=/opt/sqlbot
 ENV PYTHONPATH=${SQLBOT_HOME}/app
 ENV PATH="${SQLBOT_HOME}/app/.venv/bin:$PATH"
+# 配置 pip 国内镜像源
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
 ENV POSTGRES_DB=sqlbot
 ENV POSTGRES_USER=root

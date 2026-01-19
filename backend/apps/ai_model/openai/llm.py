@@ -29,6 +29,8 @@ def _convert_delta_to_message_chunk(
     additional_kwargs: dict = {}
     if 'reasoning_content' in _dict:
         additional_kwargs['reasoning_content'] = _dict.get('reasoning_content')
+    if 'content' in _dict:
+        additional_kwargs['reasoning_content'] = _dict.get('content')
     if _dict.get("function_call"):
         function_call = dict(_dict["function_call"])
         if "name" in function_call and function_call["name"] is None:

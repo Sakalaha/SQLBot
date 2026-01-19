@@ -11,11 +11,17 @@ template:
 
   limit_rule: |
     <rule>
-      当需要限制行数时，必须使用标准的LIMIT语法
+      1. 当需要限制行数时，必须使用标准的LIMIT语法
       <note>
-        1. 标准写法：LIMIT [count]
-        2. 分页写法：LIMIT [offset], [count] 或 LIMIT [count] OFFSET [start]
+        a. 标准写法：LIMIT [count]
+        b. 分页写法：LIMIT [offset], [count] 或 LIMIT [count] OFFSET [start]
       </note>
+    </rule>
+    <rule>
+      2.（严格，强制，必须，零容忍）在统计与计算场景中必须筛选掉空值，并且去掉所有的重复数据。
+    </rule>
+    <rule>
+      3. （严格，强制，必须，零容忍）统计数量时必须去重，去重方法："COUNT(DISTINCT field)"
     </rule>
 
   other_rule: |
@@ -26,6 +32,28 @@ template:
     <rule>函数字段必须加别名</rule>
     <rule>百分比显示为：CONCAT(ROUND(x*100,2),'%')</rule>
     <rule>避免与MySQL关键字冲突（如`order`/`group`/`desc`）</rule>
+    <rule>
+      说明：以下四种值统一视为“空值”
+      <note>
+        1. null
+        2. ''（空字符串）
+        3. '-'（单短横线）
+        4. '—'（双短横线）
+      </note>
+    </rule>
+    <rule>
+      说明：判断非空时，必须同时满足：
+      <note>
+        字段 IS NOT NULL
+        AND 字段 NOT IN ('', '-', '—')
+      </note>
+    </rule>               
+    <rule>
+      （严格，强制，必须，零容忍）在统计与计算场景中必须筛选掉空值，并且去掉所有的重复数据。
+    </rule>
+    <rule>
+      （严格，强制，必须，零容忍）统计数量时必须去重，去重方法："COUNT(DISTINCT field)"
+    </rule>
 
   basic_example: |
     <basic-examples>

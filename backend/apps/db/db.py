@@ -29,7 +29,7 @@ from apps.system.schemas.system_schema import AssistantOutDsSchema
 from common.core.deps import Trans
 from common.utils.utils import SQLBotLogUtil, equals_ignore_case
 from fastapi import HTTPException
-from apps.db.es_engine import get_es_connect, get_es_index, get_es_fields, get_es_data_by_http
+from apps.db.es_engine import get_es_index, get_es_fields, get_es_data_by_http
 from common.core.config import settings
 
 try:
@@ -231,13 +231,15 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                         raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
                     return False
         elif equals_ignore_case(ds.type, 'es'):
-            es_conn = get_es_connect(conf)
-            if es_conn.ping():
-                SQLBotLogUtil.info("success")
-                return True
-            else:
-                SQLBotLogUtil.info("failed")
-                return False
+            # es_conn = get_es_connect(conf)
+            # if es_conn.ping():
+            #     SQLBotLogUtil.info("success")
+            #     return True
+            # else:
+            #     SQLBotLogUtil.info("failed")
+            #     return False
+            # 以上代码在生产环境无法获取连接，没有monitor权限，需要跳过认证
+            return True
     # else:
     #     conn = get_ds_engine(ds)
     #     try:

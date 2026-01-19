@@ -11,35 +11,89 @@ template:
 
   limit_rule: |
     <rule>
-      当需要限制行数时，必须使用标准的LIMIT语法
+      1. 当需要限制行数时，必须使用标准的LIMIT语法
       <note>
         1. 首选：`LIMIT [count]`
         2. 分页：`LIMIT [count] OFFSET [start]`
         3. 禁止使用Elasticsearch原生`size/from`参数
       </note>
     </rule>
+    <rule>
+      2. （严格，强制，必须，零容忍）统计数量时必须去重，去重方法："COUNT(DISTINCT field)"
+    </rule>
+    <rule>
+      3.禁止语法：`SELECT DISTINCT field FROM index`。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+      <note>
+        注意：此规则禁止的是行级去重查询（SELECT DISTINCT）。
+        规则2允许的COUNT(DISTINCT field)是聚合去重，两者不同。
+      </note>
+    </rule>
+    <rule>
+      4.mapping里是nested嵌套字段的不能直接查询要按照嵌套字段名.子字段名的形式进行查询。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      5.在 WHERE 和 ORDER BY 子句中，不允许对嵌套字段（nested fields）本身使用标量函数。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      6.发起查询的时候不能同时引用索引中的多个嵌套字段，既包括多层级嵌套字段，也包括在同一层级定义的多个独立嵌套字段。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      7.禁止使用子查询。当前仅支持以下特定类型的子查询：
+        - 内外层都没有 GROUP BY / HAVING
+        - 外层 SELECT 只是选择内层已有的字段，不能加函数、表达式
+      当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      8.当目标列是 keyword 类型时，MIN 和 MAX 也不支持用于 HAVING；不支持在 HAVING 子句中使用 FIRST 或 LAST 聚合函数。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      9.在 GROUP BY 或 HISTOGRAM 中使用 TIME 数据类型目前不支持将 TIME 类型直接作为分组键（grouping key）。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      10.禁止使用JOIN作为关键字。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
+    <rule>
+      11.禁止使用Elastic不支持的函数：SPLIT、ARRAY_LENGTH等函数。
+      <note>
+        当需要分割字符串或处理数组时，请优先考虑以下替代方案：
+        1. 使用REPLACE和LENGTH函数组合替代SPLIT：例如计算字符串中点的数量，可用`LENGTH(str) - LENGTH(REPLACE(str, '.', ''))`
+        2. 使用正则表达式(REGEXP)进行模式匹配
+        3. 使用SUBSTRING和LOCATE组合提取特定部分
+        4. 如果以上方法都无法实现，才返回错误
+      </note>
+      当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+    </rule>
 
   other_rule: |
     <rule>必须为每个索引生成别名（不加AS）</rule>
-    <rule>
-      <title>Elasticsearch SQL多表查询字段限定规则</title>
-      <requirements>
-        <requirement>当使用JOIN涉及多个索引时，所有字段引用必须明确限定索引别名</requirement>
-        <requirement>适用于SELECT、WHERE、GROUP BY、HAVING、ORDER BY、ON等子句中的所有字段引用</requirement>
-        <requirement>单索引查询不需要表名前缀</requirement>
-      </requirements>
-      <notes>
-        <note>Elasticsearch的JOIN性能有限，仅适合小数据量关联</note>
-        <note>标识符引用使用双引号（"）</note>
-        <note>大多数Elasticsearch查询是单索引查询，不需要字段限定</note>
-        <note>嵌套字段通过点号访问，如 "customer.name"，不需要表名前缀</note>
-      </notes>
-    </rule>
     <rule>禁止使用星号(*)，必须明确字段名</rule>
-    <rule>中文/特殊字符字段需保留原名并添加英文别名</rule>
+    <rule>中文/特殊字符字段需保留原名并添加英文别名</rule>                         
     <rule>函数字段必须加别名</rule>
     <rule>百分比显示为：`ROUND(x*100,2) || '%'`</rule>
     <rule>避免与Elasticsearch关键字冲突（如`score`/`type`）</rule>
+    <rule>
+      说明：以下四种值统一视为“空值”
+      <note>
+        1. null
+        2. ''（空字符串）
+        3. '-'（单短横线）
+        4. '—'（双短横线）
+      </note>
+    </rule>      
+    <rule>
+      说明：判断非空时，必须同时满足：
+      <note>
+        字段 IS NOT NULL
+        AND 字段 NOT IN ('', '-', '—')
+      </note>
+    </rule>               
+    <rule>
+      （严格，强制，必须，零容忍）在统计与计算场景中必须筛选掉空值，并且去掉所有的重复数据。
+    </rule>
+    <rule>
+      （严格，强制，必须，零容忍）统计数量时必须去重，去重方法："COUNT(DISTINCT field)"
+    </rule>
+
 
   basic_example: |
     <basic-examples>
@@ -51,6 +105,25 @@ template:
           2. 中英别名/百分比/函数等特殊字段的处理
           3. 关键字冲突的规避方式
       </intro>
+      <example>
+        <input>统计中国目前有多少个IP地址</input>
+        <output-bad>
+          SELECT COUNT(*) FROM "wa_annotator_db_t_ip_base_info" WHERE "c_country" = '中国'  -- 错误1：使用 COUNT(*)
+      
+          SELECT COUNT("c_ip") FROM "wa_annotator_db_t_ip_base_info" WHERE "c_country" = '中国' AND "c_ip" IS NOT NULL AND "c_ip" NOT IN ('', '-', '--') -- 错误2：未对统计结果进行去重
+      
+          SELECT COUNT(DISTINCT "c_ip") FROM "wa_annotator_db_t_ip_base_info" WHERE "c_country" = '中国' -- 错误3：未对统计结果排除空值
+        </output-bad>
+        <output-good>
+          SELECT
+            COUNT(DISTINCT "t"."c_ip") AS "ip_count"
+          FROM "wa_annotator_db_t_ip_base_info" "t"
+          WHERE
+            "t"."c_country" = '中国'
+            AND "t"."c_ip" IS NOT NULL
+            AND "t"."c_ip" NOT IN ('', '-', '--')
+        </output-good>
+      </example>
       <example>
         <input>查询 logs-* 索引的前100条错误日志（含时间过滤）</input>
         <output-bad>
@@ -69,7 +142,6 @@ template:
           LIMIT 100
         </output-good>
       </example>
-
       <example>
         <input>统计各地区的错误日志占比（Top 5）</input>
         <output-bad>
@@ -79,8 +151,8 @@ template:
         <output-good>
           SELECT 
             "l"."region" AS "area",
-            COUNT("l"."message") AS "error_count",
-            ROUND(COUNT("l"."message") * 100.0 / SUM(COUNT("l"."message")) OVER (), 2) || '%' AS "error_percent"
+            COUNT(DISTINCT "l"."message") AS "error_count",
+            ROUND(COUNT(DISTINCT "l"."message") * 100.0 / SUM(COUNT(DISTINCT "l"."message")) OVER (), 2) || '%' AS "error_percent"
           FROM "logs-*" "l"
           WHERE "l"."level" = 'error'
           GROUP BY "l"."region"
@@ -90,7 +162,7 @@ template:
       </example>
     </basic-examples>
 
-  example_engine: Elasticsearch SQL 8.9
+  example_engine: Elasticsearch SQL 7.10
   example_answer_1: |
     {"success":true,"sql":"SELECT \"country\" AS \"country_name\", \"continent\" AS \"continent_name\", \"year\" AS \"year\", \"gdp\" AS \"gdp_usd\" FROM \"Sample_Database\".\"sample_country_gdp\" ORDER BY \"country\", \"year\"","tables":["sample_country_gdp"],"chart-type":"line"}
   example_answer_1_with_limit: |
