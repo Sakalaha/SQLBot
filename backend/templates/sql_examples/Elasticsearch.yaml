@@ -69,9 +69,8 @@ template:
     <rule>
       只要查备案相关的就查wa_annotator_db_t_domain_icp
     </rule>
-  other_rule: | 
+  other_rule: |
     <rule>必须为每个索引生成别名（不加AS）</rule>
-    <rule>（严格，强制，必须，零容忍）禁止使用单位基本信息表的c_ips,c_mails,c_certs,c_domains</rule>
     <rule>分词的时候省份、城市、地区、来源、县必须都要分开</rule>
     <rule>（严格，强制，必须，零容忍）禁止使用星号(*)，必须明确字段名</rule>
     <rule>执行完sql，回答的时候严格按照字段回答，别瞎展示表里没有的字段</rule>
@@ -113,13 +112,22 @@ template:
           2. 中英别名/百分比/函数等特殊字段的处理
           3. 关键字冲突的规避方式
       </intro>
+    <example>
+        <input>查询用户表 "users" 和订单表 "orders" 中，用户名叫张三的所有订单</input>
+        <output-bad>
+          SELECT "o".* FROM "orders" "o" JOIN "users" "u" ON "o"."user_id" = "u"."id" WHERE "u"."name" = '张三'
+        </output-bad>
+        <output-good>
+          {"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构（如 JOIN 关联查询），请检查您的查询语句或简化查询。"}
+        </output-good>
+      </example>
       <example>
         <input>统计中国目前有多少个IP地址</input>
         <output-bad>
           SELECT COUNT(*) FROM "wa_annotator_db_t_ip_base_info" WHERE "c_country" = '中国'  -- 错误1：使用 COUNT(*)
-      
+    
           SELECT COUNT("c_ip") FROM "wa_annotator_db_t_ip_base_info" WHERE "c_country" = '中国' AND "c_ip" IS NOT NULL AND "c_ip" NOT IN ('', '-', '--') -- 错误2：未对统计结果进行去重
-      
+    
           SELECT COUNT(DISTINCT "c_ip") FROM "wa_annotator_db_t_ip_base_info" WHERE "c_country" = '中国' -- 错误3：未对统计结果排除空值
         </output-bad>
         <output-good>
