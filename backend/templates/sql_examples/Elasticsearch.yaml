@@ -38,9 +38,7 @@ template:
       6.发起查询的时候不能同时引用索引中的多个嵌套字段，既包括多层级嵌套字段，也包括在同一层级定义的多个独立嵌套字段。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
     </rule>
     <rule>
-      7.禁止使用子查询。当前仅支持以下特定类型的子查询：
-        - 内外层都没有 GROUP BY / HAVING
-        - 外层 SELECT 只是选择内层已有的字段，不能加函数、表达式
+      7.禁止使用子查询。
       当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
     </rule>
     <rule>
@@ -63,10 +61,20 @@ template:
       </note>
       当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
     </rule>
-
-  other_rule: |
+    <rule>
+      - 仅当用户使用“包含”、“类似”、“部分匹配”、“有...字”、“模糊”等词汇时，才允许在 WHERE 条件中使用 LIKE。
+      - 其他所有情况（包括仅提供关键词如“北京科技有限公司”），必须使用 = 进行精确匹配。
+      - 禁止假设用户需要模糊查询。
+    </rule>
+    <rule>
+      只要查备案相关的就查wa_annotator_db_t_domain_icp
+    </rule>
+  other_rule: | 
     <rule>必须为每个索引生成别名（不加AS）</rule>
-    <rule>禁止使用星号(*)，必须明确字段名</rule>
+    <rule>（严格，强制，必须，零容忍）禁止使用单位基本信息表的c_ips,c_mails,c_certs,c_domains</rule>
+    <rule>分词的时候省份、城市、地区、来源、县必须都要分开</rule>
+    <rule>（严格，强制，必须，零容忍）禁止使用星号(*)，必须明确字段名</rule>
+    <rule>执行完sql，回答的时候严格按照字段回答，别瞎展示表里没有的字段</rule>
     <rule>中文/特殊字符字段需保留原名并添加英文别名</rule>                         
     <rule>函数字段必须加别名</rule>
     <rule>百分比显示为：`ROUND(x*100,2) || '%'`</rule>
@@ -122,6 +130,15 @@ template:
             "t"."c_country" = '中国'
             AND "t"."c_ip" IS NOT NULL
             AND "t"."c_ip" NOT IN ('', '-', '--')
+        </output-good>
+      </example>
+      <example>
+        <input>请帮我查询中共江西省委党校的基本信息且属于江西省单位测绘来源20250401这天</input>
+        <output-bad>
+          SELECT "u"."c_id" AS "unit_id","u"."c_name" AS "unit_name","u"."c_ips" AS "ip_assets","u"."c_source" AS "source", "u"."c_day" AS "day" FROM "wa_annotator_db_t_unit_baseinfo_test" "u" WHERE "u"."c_name" LIKE '%中共江西省委党校%' AND "u"."c_source"='江西省单位测绘' AND "u"."c_day" = 20250401 LIMIT 1000 
+        </output-bad>
+        <output-good>
+          SELECT "u"."c_id" AS "unit_id","u"."c_name" AS "unit_name","u"."c_source" AS "source", "u"."c_day" AS "day" FROM "wa_annotator_db_t_unit_baseinfo_test" "u" WHERE "u"."c_name" = '中共江西省委党校' AND "u"."c_source"='单位测绘' AND "u"."c_province"='江西省' AND "u"."c_day" = 20250401 LIMIT 1000 
         </output-good>
       </example>
       <example>
