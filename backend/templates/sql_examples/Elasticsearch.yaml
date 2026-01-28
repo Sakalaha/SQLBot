@@ -134,7 +134,7 @@ template:
           SELECT
             COUNT(DISTINCT "t"."c_ip") AS "ip_count"
           FROM "wa_annotator_db_t_ip_base_info" "t"
-          WHER5
+          WHERE
             "t"."c_country" = '中国'
             AND "t"."c_ip" IS NOT NULL
             AND "t"."c_ip" NOT IN ('', '-', '--')
