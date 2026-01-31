@@ -60,7 +60,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                     t.TABLE_TYPE IN ('BASE TABLE', 'VIEW')
                     AND t.TABLE_SCHEMA = :param
                 """, conf.dbSchema
-    elif equals_ignore_case(ds.type, "pg", "excel"):
+    elif equals_ignore_case(ds.type, "excel"):
         return """
               SELECT c.relname                                       AS TABLE_NAME,
                      COALESCE(COALESCE(d.description, obj_description(c.oid)), '') AS TABLE_COMMENT
@@ -73,6 +73,22 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                 AND c.relkind IN ('r', 'v', 'p', 'm')
                 AND c.relname NOT LIKE 'pg_%'
                 AND c.relname NOT LIKE 'sql_%'
+              ORDER BY c.relname \
+              """, conf.dbSchema
+    elif equals_ignore_case(ds.type, "pg"):
+        return """
+              SELECT c.relname                                       AS TABLE_NAME,
+                     COALESCE(COALESCE(d.description, obj_description(c.oid)), '') AS TABLE_COMMENT
+              FROM pg_class c
+                       LEFT JOIN
+                   pg_namespace n ON n.oid = c.relnamespace
+                       LEFT JOIN
+                   pg_description d ON d.objoid = c.oid AND d.objsubid = 0
+              WHERE n.nspname = :param
+                AND c.relkind IN ('r', 'v', 'p', 'm')
+                AND c.relname NOT LIKE 'pg_%'
+                AND c.relname NOT LIKE 'sql_%'
+                AND c.relname NOT LIKE '%_prt_%'
               ORDER BY c.relname \
               """, conf.dbSchema
     elif equals_ignore_case(ds.type, "oracle"):
