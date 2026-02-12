@@ -107,9 +107,13 @@ const handleCurrentChange = (val: number) => {
 
 const fieldListComputed = computed(() => {
   const { currentPage, pageSize } = pageInfo
-  return fieldList.value
-    .filter((ele: any) => ele.field_name.toLowerCase().includes(fieldName.value.toLowerCase()))
-    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  return fieldListTotalComputed.value.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+})
+
+const fieldListTotalComputed = computed(() => {
+  return fieldList.value.filter((ele: any) =>
+    ele.field_name.toLowerCase().includes(fieldName.value.toLowerCase())
+  )
 })
 
 const init = (reset = false) => {
@@ -319,7 +323,7 @@ const renderHeader = ({ column }: any) => {
 }
 const fieldNameSearch = debounce(() => {
   pageInfo.currentPage = 1
-  pageInfo.total = fieldListComputed.value.length
+  pageInfo.total = fieldListTotalComputed.value.length
 }, 100)
 const fieldName = ref('')
 const btnSelectClick = (val: any) => {
@@ -377,10 +381,17 @@ const btnSelectClick = (val: any) => {
         <div class="select-table_top">
           {{ $t('ds.tables') }}
 
-          <el-tooltip effect="dark" :content="$t('ds.form.choose_tables')" placement="top">
-            <el-icon size="18" @click="handleSelectTableList">
-              <icon_form_outlined></icon_form_outlined>
-            </el-icon>
+          <el-tooltip
+            effect="dark"
+            offset="10"
+            :content="$t('ds.form.choose_tables')"
+            placement="top"
+          >
+            <el-button style="margin-right: -4px" @click="handleSelectTableList" text>
+              <el-icon size="18">
+                <icon_form_outlined></icon_form_outlined>
+              </el-icon>
+            </el-button>
           </el-tooltip>
         </div>
         <el-input
@@ -777,6 +788,10 @@ const btnSelectClick = (val: any) => {
           padding-left: 8px;
           border-radius: 4px;
           cursor: pointer;
+
+          &:not(:last-child) {
+            margin-bottom: 2px;
+          }
 
           &.disabled-table {
             background: #dee0e3 !important;

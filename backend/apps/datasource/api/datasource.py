@@ -28,16 +28,16 @@ from ..crud.field import get_fields_by_table_id
 from ..crud.table import get_tables_by_ds_id
 from ..models.datasource import CoreDatasource, CreateDatasource, TableObj, CoreTable, CoreField, FieldObj, \
     TableSchemaResponse, ColumnSchemaResponse, PreviewResponse
-from sqlbot_xpack.audit.models.log_model import OperationType, OperationDetails, OperationModules
-from sqlbot_xpack.audit.schemas.logger_decorator import system_log, LogConfig
+from common.audit.models.log_model import OperationType, OperationModules
+from common.audit.schemas.logger_decorator import LogConfig, system_log
+
 router = APIRouter(tags=["Datasource"], prefix="/datasource")
 path = settings.EXCEL_PATH
 
 
 @router.get("/ws/{oid}", include_in_schema=False)
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def query_by_oid(session: SessionDep, user: CurrentUser, oid: int) -> List[CoreDatasource]:
-    if not user.isAdmin:
-        raise Exception("no permission to execute")
     return get_datasource_list(session=session, user=user, oid=oid)
 
 
@@ -48,11 +48,13 @@ async def datasource_list(session: SessionDep, user: CurrentUser):
 
 
 @router.post("/get/{id}", response_model=CoreDatasource, summary=f"{PLACEHOLDER_PREFIX}ds_get")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin'], keyExpression="id", type='ds'))
 async def get_datasource(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     return get_ds(session, id)
 
 
 @router.post("/check", response_model=bool, summary=f"{PLACEHOLDER_PREFIX}ds_check")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def check(session: SessionDep, trans: Trans, ds: CoreDatasource):
     def inner():
         return check_status(session, trans, ds, True)
@@ -70,20 +72,28 @@ async def check_by_id(session: SessionDep, trans: Trans,
 
 
 @router.post("/add", response_model=CoreDatasource, summary=f"{PLACEHOLDER_PREFIX}ds_add")
-@system_log(LogConfig(
-    operation_type=OperationType.CREATE_DATASOURCE,
-    operation_detail=OperationDetails.CREATE_DATASOURCE_DETAILS,
-    module=OperationModules.DATASOURCE,
-    result_id_expr="id"
-))
+@system_log(LogConfig(operation_type=OperationType.CREATE, module=OperationModules.DATASOURCE, result_id_expr="id"))
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def add(session: SessionDep, trans: Trans, user: CurrentUser, ds: CreateDatasource):
-    def inner():
+    """ def inner():
         return create_ds(session, trans, user, ds)
 
-    return await asyncio.to_thread(inner)
+    return await asyncio.to_thread(inner) """
+    loop = asyncio.get_event_loop()
+    
+    def sync_wrapper():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(create_ds(session, trans, user, ds))
+        finally:
+            loop.close()
+    
+    return await loop.run_in_executor(None, sync_wrapper)
 
 
 @router.post("/chooseTables/{id}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_choose_tables")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin'], permission=SqlbotPermission(type='ds', keyExpression="id")))
 async def choose_tables(session: SessionDep, trans: Trans, tables: List[CoreTable],
                         id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     def inner():
@@ -93,13 +103,9 @@ async def choose_tables(session: SessionDep, trans: Trans, tables: List[CoreTabl
 
 
 @router.post("/update", response_model=CoreDatasource, summary=f"{PLACEHOLDER_PREFIX}ds_update")
-@require_permissions(permission=SqlbotPermission(type='ds', keyExpression="ds.id"))
-@system_log(LogConfig(
-    operation_type=OperationType.UPDATE_DATASOURCE,
-    operation_detail=OperationDetails.UPDATE_DATASOURCE_DETAILS,
-    module=OperationModules.DATASOURCE,
-    resource_id_expr="ds.id"
-))
+@require_permissions(permission=SqlbotPermission(role=['ws_admin'], permission=SqlbotPermission(type='ds', keyExpression="ds.id")))
+@system_log(
+    LogConfig(operation_type=OperationType.UPDATE, module=OperationModules.DATASOURCE, resource_id_expr="ds.id"))
 async def update(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource):
     def inner():
         return update_ds(session, trans, user, ds)
@@ -107,16 +113,12 @@ async def update(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreD
     return await asyncio.to_thread(inner)
 
 
-@router.post("/delete/{id}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_delete")
-@require_permissions(permission=SqlbotPermission(type='ds', keyExpression="id"))
-@system_log(LogConfig(
-    operation_type=OperationType.DELETE_DATASOURCE,
-    operation_detail=OperationDetails.DELETE_DATASOURCE_DETAILS,
-    module=OperationModules.DATASOURCE,
-    resource_id_expr="id"
-))
-async def delete(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
-    return delete_ds(session, id)
+@router.post("/delete/{id}/{name}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_delete")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin'], type='ds', keyExpression="id"))
+@system_log(LogConfig(operation_type=OperationType.DELETE, module=OperationModules.DATASOURCE, resource_id_expr="id",
+                      ))
+async def delete(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id"), name: str = None):
+    return await delete_ds(session, id)
 
 
 @router.post("/getTables/{id}", response_model=List[TableSchemaResponse], summary=f"{PLACEHOLDER_PREFIX}ds_get_tables")
@@ -126,6 +128,7 @@ async def get_tables(session: SessionDep, id: int = Path(..., description=f"{PLA
 
 
 @router.post("/getTablesByConf", response_model=List[TableSchemaResponse], summary=f"{PLACEHOLDER_PREFIX}ds_get_tables")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def get_tables_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasource):
     try:
         def inner():
@@ -144,6 +147,7 @@ async def get_tables_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasour
 
 
 @router.post("/getSchemaByConf", response_model=List[str], summary=f"{PLACEHOLDER_PREFIX}ds_get_schema")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def get_schema_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasource):
     try:
         def inner():
@@ -163,6 +167,7 @@ async def get_schema_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasour
 
 @router.post("/getFields/{id}/{table_name}", response_model=List[ColumnSchemaResponse],
              summary=f"{PLACEHOLDER_PREFIX}ds_get_fields")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin'], type='ds', keyExpression="id"))
 async def get_fields(session: SessionDep,
                      id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id"),
                      table_name: str = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_name")):
@@ -170,8 +175,9 @@ async def get_fields(session: SessionDep,
 
 
 @router.post("/syncFields/{id}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_sync_fields")
-async def sync_fields(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_id")):
-    return sync_single_fields(session, id)
+async def sync_fields(session: SessionDep, trans: Trans,
+                      id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_id")):
+    return sync_single_fields(session, trans, id)
 
 
 from pydantic import BaseModel
@@ -182,7 +188,7 @@ class TestObj(BaseModel):
 
 
 # not used, just do test
-@router.post("/execSql/{id}", include_in_schema=False)
+""" @router.post("/execSql/{id}", include_in_schema=False)
 async def exec_sql(session: SessionDep, id: int, obj: TestObj):
     def inner():
         data = execSql(session, id, obj.sql)
@@ -195,31 +201,36 @@ async def exec_sql(session: SessionDep, id: int, obj: TestObj):
 
         return data
 
-    return await asyncio.to_thread(inner)
+    return await asyncio.to_thread(inner) """
 
 
 @router.post("/tableList/{id}", response_model=List[CoreTable], summary=f"{PLACEHOLDER_PREFIX}ds_table_list")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin'], type='ds', keyExpression="id"))
 async def table_list(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     return get_tables_by_ds_id(session, id)
 
 
 @router.post("/fieldList/{id}", response_model=List[CoreField], summary=f"{PLACEHOLDER_PREFIX}ds_field_list")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def field_list(session: SessionDep, field: FieldObj,
                      id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_id")):
     return get_fields_by_table_id(session, id, field)
 
 
 @router.post("/editLocalComment", include_in_schema=False)
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def edit_local(session: SessionDep, data: TableObj):
     update_table_and_fields(session, data)
 
 
 @router.post("/editTable", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_edit_table")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def edit_table(session: SessionDep, table: CoreTable):
     updateTable(session, table)
 
 
 @router.post("/editField", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_edit_field")
+@require_permissions(permission=SqlbotPermission(role=['ws_admin']))
 async def edit_field(session: SessionDep, field: CoreField):
     updateField(session, field)
 
@@ -385,6 +396,7 @@ def insert_pg(df, tableName, engine):
 
 
 t_sheet = "数据表列表"
+t_s_col = "Sheet名称"
 t_n_col = "表名"
 t_c_col = "表备注"
 f_n_col = "字段名"
@@ -404,7 +416,8 @@ async def export_ds_schema(session: SessionDep, id: int = Path(..., description=
         if id == 0:  # download template
             file_name = '批量上传备注'
             df_list = [
-                {'sheet': t_sheet, 'c1_h': t_n_col, 'c2_h': t_c_col, 'c1': ["user", "score"],
+                {'sheet': t_sheet, 'c0_h': t_s_col, 'c1_h': t_n_col, 'c2_h': t_c_col, 'c0': ["数据表1", "数据表2"],
+                 'c1': ["user", "score"],
                  'c2': ["用来存放用户信息的数据表", "用来存放用户课程信息的数据表"]},
                 {'sheet': '数据表1', 'c1_h': f_n_col, 'c2_h': f_c_col, 'c1': ["id", "name"],
                  'c2': ["用户id", "用户姓名"]},
@@ -414,19 +427,22 @@ async def export_ds_schema(session: SessionDep, id: int = Path(..., description=
         else:
             ds = session.query(CoreDatasource).filter(CoreDatasource.id == id).first()
             file_name = ds.name
-            tables = session.query(CoreTable).filter(CoreTable.ds_id == id).all()
+            tables = session.query(CoreTable).filter(CoreTable.ds_id == id).order_by(
+                CoreTable.table_name.asc()).all()
             if len(tables) == 0:
                 raise HTTPException(400, "No tables")
 
             df_list = []
-            df1 = {'sheet': t_sheet, 'c1_h': t_n_col, 'c2_h': t_c_col, 'c1': [], 'c2': []}
+            df1 = {'sheet': t_sheet, 'c0_h': t_s_col, 'c1_h': t_n_col, 'c2_h': t_c_col, 'c0': [], 'c1': [], 'c2': []}
             df_list.append(df1)
-            for table in tables:
+            for index, table in enumerate(tables):
+                df1['c0'].append(f"Sheet{index}")
                 df1['c1'].append(table.table_name)
                 df1['c2'].append(table.custom_comment)
 
-                fields = session.query(CoreField).filter(CoreField.table_id == table.id).all()
-                df_fields = {'sheet': table.table_name, 'c1_h': f_n_col, 'c2_h': f_c_col, 'c1': [], 'c2': []}
+                fields = session.query(CoreField).filter(CoreField.table_id == table.id).order_by(
+                    CoreField.field_index.asc()).all()
+                df_fields = {'sheet': f"Sheet{index}", 'c1_h': f_n_col, 'c2_h': f_c_col, 'c1': [], 'c2': []}
                 for field in fields:
                     df_fields['c1'].append(field.field_name)
                     df_fields['c2'].append(field.custom_comment)
@@ -435,10 +451,14 @@ async def export_ds_schema(session: SessionDep, id: int = Path(..., description=
         # build dataframe and export
         output = io.BytesIO()
 
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            for df in df_list:
-                pd.DataFrame({df['c1_h']: df['c1'], df['c2_h']: df['c2']}).to_excel(writer, sheet_name=df['sheet'],
-                                                                                    index=False)
+        with (pd.ExcelWriter(output, engine='xlsxwriter') as writer):
+            for index, df in enumerate(df_list):
+                if index == 0:
+                    pd.DataFrame({df['c0_h']: df['c0'], df['c1_h']: df['c1'], df['c2_h']: df['c2']}
+                                 ).to_excel(writer, sheet_name=df['sheet'], index=False)
+                else:
+                    pd.DataFrame({df['c1_h']: df['c1'], df['c2_h']: df['c2']}).to_excel(writer, sheet_name=df['sheet'],
+                                                                                        index=False)
 
         output.seek(0)
 
@@ -484,10 +504,14 @@ async def upload_ds_schema(session: SessionDep, id: int = Path(..., description=
 
         # print(field_sheets)
 
+        # sheet table mapping
+        sheet_table_map = {}
+
         # get data and update
         # update table comment
         if table_sheet and len(table_sheet) > 0:
             for table in table_sheet:
+                sheet_table_map[table[t_s_col]] = table[t_n_col]
                 session.query(CoreTable).filter(
                     and_(CoreTable.ds_id == id, CoreTable.table_name == table[t_n_col])).update(
                     {'custom_comment': table[t_c_col]})
@@ -497,8 +521,9 @@ async def upload_ds_schema(session: SessionDep, id: int = Path(..., description=
             for fields in field_sheets:
                 if len(fields['data']) > 0:
                     # get table id
+                    table_name = sheet_table_map.get(fields['sheet_name'])
                     table = session.query(CoreTable).filter(
-                        and_(CoreTable.ds_id == id, CoreTable.table_name == fields['sheet_name'])).first()
+                        and_(CoreTable.ds_id == id, CoreTable.table_name == table_name)).first()
                     if table:
                         for field in fields['data']:
                             session.query(CoreField).filter(
@@ -510,4 +535,4 @@ async def upload_ds_schema(session: SessionDep, id: int = Path(..., description=
 
         return True
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"解析 Excel 失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Parse Excel Failed: {str(e)}")

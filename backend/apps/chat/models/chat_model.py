@@ -40,6 +40,12 @@ class OperationEnum(Enum):
     GENERATE_SQL_WITH_PERMISSIONS = '5'
     CHOOSE_DATASOURCE = '6'
     GENERATE_DYNAMIC_SQL = '7'
+    CHOOSE_TABLE = '8'
+    FILTER_TERMS = '9'
+    FILTER_SQL_EXAMPLE = '10'
+    FILTER_CUSTOM_PROMPT = '11'
+    EXECUTE_SQL = '12'
+    GENERATE_PICTURE = '13'
 
 
 class ChatFinishStep(Enum):
@@ -71,6 +77,8 @@ class ChatLog(SQLModel, table=True):
     start_time: datetime = Field(sa_column=Column(DateTime(timezone=False), nullable=True))
     finish_time: datetime = Field(sa_column=Column(DateTime(timezone=False), nullable=True))
     token_usage: Optional[dict | None | int] = Field(sa_column=Column(JSONB))
+    local_operation: bool = Field(default=False)
+    error: bool = Field(default=False)
 
 
 class Chat(SQLModel, table=True):
@@ -86,6 +94,9 @@ class Chat(SQLModel, table=True):
     origin: Optional[int] = Field(
         sa_column=Column(Integer, nullable=False, default=0))  # 0: default, 1: mcp, 2: assistant
     brief_generate: bool = Field(default=False)
+    recommended_question_answer: str = Field(sa_column=Column(Text, nullable=True))
+    recommended_question: str = Field(sa_column=Column(Text, nullable=True))
+    recommended_generate: bool = Field(default=False)
 
 
 class ChatRecord(SQLModel, table=True):
@@ -146,6 +157,8 @@ class ChatRecordResult(BaseModel):
     chart_reasoning_content: Optional[str] = None
     analysis_reasoning_content: Optional[str] = None
     predict_reasoning_content: Optional[str] = None
+    duration: Optional[float] = None  # 耗时字段（单位：秒）
+    total_tokens: Optional[int] = None  # token总消耗
 
 
 class CreateChat(BaseModel):
@@ -172,7 +185,28 @@ class ChatInfo(BaseModel):
     ds_type: str = ''
     datasource_name: str = ''
     datasource_exists: bool = True
+    recommended_question: Optional[str] = None
+    recommended_generate: Optional[bool] = False
     records: List[ChatRecord | dict] = []
+
+
+class ChatLogHistoryItem(BaseModel):
+    start_time: Optional[datetime] = None
+    finish_time: Optional[datetime] = None
+    duration: Optional[float] = None  # 耗时字段（单位：秒）
+    total_tokens: Optional[int] = None  # token总消耗
+    operate: Optional[str] = None
+    local_operation: Optional[bool] = False
+    message: Optional[str | dict | list] = None
+    error: Optional[bool] = False
+
+
+class ChatLogHistory(BaseModel):
+    start_time: Optional[datetime] = None
+    finish_time: Optional[datetime] = None
+    duration: Optional[float] = None  # 耗时字段（单位：秒）
+    total_tokens: Optional[int] = None  # token总消耗
+    steps: List[ChatLogHistoryItem | dict] = []
 
 
 class AiModelQuestion(BaseModel):
@@ -232,9 +266,9 @@ class AiModelQuestion(BaseModel):
     def chart_sys_question(self):
         return get_chart_template()['system'].format(sql=self.sql, question=self.question, lang=self.lang)
 
-    def chart_user_question(self, chart_type: Optional[str] = None):
+    def chart_user_question(self, chart_type: Optional[str] = '', schema: Optional[str] = ''):
         return get_chart_template()['user'].format(sql=self.sql, question=self.question, rule=self.rule,
-                                                   chart_type=chart_type)
+                                                   chart_type=chart_type, schema=schema)
 
     def analysis_sys_question(self):
         return get_analysis_template()['system'].format(lang=self.lang, terminologies=self.terminologies,
@@ -277,6 +311,7 @@ class AiModelQuestion(BaseModel):
 
 class ChatQuestion(AiModelQuestion):
     chat_id: int
+    datasource_id: Optional[int] = None
 
 
 class ChatMcp(ChatQuestion):
@@ -293,6 +328,8 @@ class McpQuestion(BaseModel):
     chat_id: int = Body(description='会话ID')
     token: str = Body(description='token')
     stream: Optional[bool] = Body(description='是否流式输出，默认为true开启, 关闭false则返回JSON对象', default=True)
+    lang: Optional[str] = Body(description='语言：zh-CN|en|ko-KR', default='zh-CN')
+    datasource_id: Optional[int | str] = Body(description='数据源ID，仅当当前对话没有确定数据源时有效', default=None)
 
 
 class AxisObj(BaseModel):

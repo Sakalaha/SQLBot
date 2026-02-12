@@ -147,7 +147,7 @@
             </div>
 
             <el-button
-              v-if="isCompletePage && currentChatId === undefined"
+              v-if="(isCompletePage || selectAssistantDs) && currentChatId === undefined"
               size="large"
               type="primary"
               class="greeting-btn"
@@ -239,6 +239,11 @@
                   >
                     <ErrorInfo :error="message.record?.error" class="error-container" />
                     <template #tool>
+                      <ChatTokenTime
+                        :record-id="message.record?.id"
+                        :duration="message.record?.duration"
+                        :total-tokens="message.record?.total_tokens"
+                      />
                       <ChatToolBar v-if="!message.isTyping" :message="message">
                         <div class="tool-btns">
                           <el-tooltip
@@ -329,6 +334,11 @@
                   >
                     <ErrorInfo :error="message.record?.error" class="error-container" />
                     <template #tool>
+                      <ChatTokenTime
+                        :record-id="message.record?.id"
+                        :duration="message.record?.duration"
+                        :total-tokens="message.record?.total_tokens"
+                      />
                       <ChatToolBar v-if="!message.isTyping" :message="message" />
                     </template>
                   </AnalysisAnswer>
@@ -351,6 +361,11 @@
                   >
                     <ErrorInfo :error="message.record?.error" class="error-container" />
                     <template #tool>
+                      <ChatTokenTime
+                        :record-id="message.record?.id"
+                        :duration="message.record?.duration"
+                        :total-tokens="message.record?.total_tokens"
+                      />
                       <ChatToolBar v-if="!message.isTyping" :message="message" />
                     </template>
                   </PredictAnswer>
@@ -360,9 +375,12 @@
           </div>
         </el-scrollbar>
       </el-main>
-      <el-footer v-if="computedMessages.length > 0 || !isCompletePage" class="chat-footer">
+      <el-footer
+        v-if="computedMessages.length > 0 || (!isCompletePage && !selectAssistantDs)"
+        class="chat-footer"
+      >
         <div class="input-wrapper" @click="clickInput">
-          <div v-if="isCompletePage" class="datasource">
+          <div v-if="isCompletePage || selectAssistantDs" class="datasource">
             <template v-if="currentChat.datasource && currentChat.datasource_name">
               {{ t('qa.selected_datasource') }}:
               <img
@@ -397,7 +415,7 @@
             :disabled="isTyping"
             clearable
             class="input-area"
-            :class="!isCompletePage && 'is-assistant'"
+            :class="!isCompletePage && !selectAssistantDs && 'is-assistant'"
             type="textarea"
             :autosize="{ minRows: 1, maxRows: 8.583 }"
             :placeholder="t('qa.question_placeholder')"
@@ -420,7 +438,11 @@
       </el-footer>
     </el-container>
 
-    <ChatCreator v-if="isCompletePage" ref="chatCreatorRef" @on-chat-created="onChatCreatedQuick" />
+    <ChatCreator
+      v-if="isCompletePage || selectAssistantDs"
+      ref="chatCreatorRef"
+      @on-chat-created="onChatCreatedQuick"
+    />
     <ChatCreator ref="hiddenChatCreatorRef" hidden @on-chat-created="onChatCreatedQuick" />
   </el-container>
 </template>
@@ -436,6 +458,7 @@ import UserChat from './chat-block/UserChat.vue'
 import RecommendQuestion from './RecommendQuestion.vue'
 import ChatListContainer from './ChatListContainer.vue'
 import ChatCreator from '@/views/chat/ChatCreator.vue'
+import ChatTokenTime from '@/views/chat/ChatTokenTime.vue'
 import ErrorInfo from './ErrorInfo.vue'
 import ChatToolBar from './ChatToolBar.vue'
 import { dsTypeWithImg } from '@/views/ds/js/ds-type'
@@ -482,6 +505,10 @@ const isCompletePage = computed(() => !assistantStore.getAssistant || assistantS
 const embeddedHistoryHidden = computed(
   () => assistantStore.getAssistant && !assistantStore.getHistory
 )
+// const autoDs = computed(() => assistantStore.getAssistant && assistantStore.getAutoDs)
+const selectAssistantDs = computed(() => {
+  return assistantStore.getAssistant && !assistantStore.getAutoDs
+})
 const customName = computed(() => {
   if (!isCompletePage.value && props.pageEmbedded) return props.appName
   return ''
@@ -558,6 +585,8 @@ let scrollTime: any
 let scrollingTime: any
 let scrollTopVal = 0
 let scrolling = false
+let userScrolledAway = false // 用户是否主动滚动离开底部
+
 const scrollBottom = () => {
   if (scrolling) return
   if (!isTyping.value && !getRecommendQuestionsLoading.value) {
@@ -577,22 +606,24 @@ const handleScroll = (val: any) => {
   scrollingTime = setTimeout(() => {
     scrolling = false
   }, 400)
-  if (
-    scrollTopVal + 200 <
+
+  const threshold =
     innerRef.value!.clientHeight - (document.querySelector('.chat-record-list')!.clientHeight - 20)
-  ) {
+  const isNearBottom = scrollTopVal + 50 >= threshold
+
+  // 用户滚动离开底部时，标记并停止自动滚动
+  if (!isNearBottom) {
+    userScrolledAway = true
     clearInterval(scrollTime)
     scrollTime = null
     return
   }
 
-  if (
-    !scrollTime &&
-    isTyping.value &&
-    scrollTopVal + 30 <
-      innerRef.value!.clientHeight -
-        (document.querySelector('.chat-record-list')!.clientHeight - 20)
-  ) {
+  // 用户滚回底部时，重置标记
+  userScrolledAway = false
+
+  // 只有用户在底部、没有主动滚走、且正在输入时才启动自动滚动
+  if (!scrollTime && isTyping.value && !userScrolledAway) {
     scrollTime = setInterval(() => {
       scrollBottom()
     }, 300)
@@ -634,7 +665,7 @@ const createNewChat = async () => {
     return
   }
   goEmpty()
-  if (!isCompletePage.value) {
+  if (!isCompletePage.value && !selectAssistantDs.value) {
     currentChat.value = new ChatInfo()
     currentChatId.value = undefined
     return
@@ -743,6 +774,7 @@ async function onChartAnswerFinish(id: number) {
   getRecommendQuestionsLoading.value = true
   loading.value = false
   isTyping.value = false
+  getRecordUsage(id)
   getRecommendQuestions(id)
 }
 
@@ -750,10 +782,10 @@ const loadingOver = () => {
   getRecommendQuestionsLoading.value = false
 }
 
-function onChartAnswerError() {
+function onChartAnswerError(id: number) {
   loading.value = false
   isTyping.value = false
-  console.debug('onChartAnswerError')
+  getRecordUsage(id)
 }
 
 function onChatStop() {
@@ -764,6 +796,7 @@ function onChatStop() {
 const assistantPrepareSend = async () => {
   if (
     !isCompletePage.value &&
+    !selectAssistantDs.value &&
     (currentChatId.value == null || typeof currentChatId.value == 'undefined')
   ) {
     const assistantChat = await assistantStore.setChat()
@@ -832,12 +865,13 @@ const analysisAnswerRef = ref()
 async function onAnalysisAnswerFinish(id: number) {
   loading.value = false
   isTyping.value = false
-  console.debug(id)
+  getRecordUsage(id)
   //await getRecommendQuestions(id)
 }
-function onAnalysisAnswerError() {
+function onAnalysisAnswerError(id: number) {
   loading.value = false
   isTyping.value = false
+  getRecordUsage(id)
 }
 
 function askAgain(message: ChatMessage) {
@@ -899,17 +933,42 @@ async function clickAnalysis(id?: number) {
   return
 }
 
+function getRecordUsage(recordId: any) {
+  console.debug('getRecordUsage id: ', recordId)
+  nextTick(() => {
+    chatApi
+      .get_chart_usage(recordId)
+      .then((res) => {
+        const logHistory = chatApi.toChatLogHistory(res)
+        if (logHistory) {
+          currentChat.value.records.forEach((record) => {
+            if (record.id === recordId) {
+              record.duration = logHistory.duration
+              record.finish_time = logHistory.finish_time
+              record.total_tokens = logHistory.total_tokens
+            }
+          })
+        }
+      })
+      .catch((e) => {
+        console.error(e)
+      })
+  })
+}
+
 const predictAnswerRef = ref()
 
 async function onPredictAnswerFinish(id: number) {
   loading.value = false
   isTyping.value = false
-  console.debug('onPredictAnswerFinish: ', id)
+  // console.debug('onPredictAnswerFinish: ', id)
+  getRecordUsage(id)
   //await getRecommendQuestions(id)
 }
-function onPredictAnswerError() {
+function onPredictAnswerError(id: number) {
   loading.value = false
   isTyping.value = false
+  getRecordUsage(id)
 }
 
 async function clickPredict(id?: number) {
@@ -1014,7 +1073,7 @@ function stop(func?: (...p: any[]) => void, ...param: any[]) {
   }
 }
 const showFloatPopover = () => {
-  if (!isCompletePage.value && !floatPopoverVisible.value) {
+  if ((!isCompletePage.value || isPhone.value) && !floatPopoverVisible.value) {
     floatPopoverVisible.value = true
   }
 }
@@ -1090,7 +1149,7 @@ onMounted(() => {
     }
   }
   .hidden-sidebar-btn {
-    z-index: 1;
+    z-index: 11;
     position: absolute;
     padding: 16px;
     top: 0;
@@ -1124,6 +1183,8 @@ onMounted(() => {
     border-radius: 0 12px 12px 0;
 
     .no-horizontal.ed-scrollbar {
+      position: relative;
+      z-index: 10;
       .ed-scrollbar__bar.is-horizontal {
         display: none;
       }
@@ -1159,6 +1220,8 @@ onMounted(() => {
     min-height: calc(120px + 16px);
     max-height: calc(300px + 16px);
     height: fit-content;
+    position: relative;
+    z-index: 1;
 
     padding-bottom: 16px;
 
@@ -1324,6 +1387,7 @@ onMounted(() => {
     max-width: 800px;
     display: flex;
     gap: 16px;
+    padding: 0 16px;
     align-items: center;
     flex-direction: column;
 
