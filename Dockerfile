@@ -30,6 +30,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ENV PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
+# 建议额外增加并发控制和超时时间，防止大包下载中断
+ENV UV_CONCURRENT_DOWNLOADS=1
+ENV UV_HTTP_TIMEOUT=300
 
 # Create necessary directories
 RUN mkdir -p ${APP_HOME} ${UI_HOME}
