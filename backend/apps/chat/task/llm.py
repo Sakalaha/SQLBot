@@ -1667,6 +1667,7 @@ def process_stream(res: Iterator[BaseMessageChunk],
     in_thinking_block = False  # 标记是否在思考过程块中
     current_thinking = ''  # 当前收集的思考过程内容
     pending_start_tag = ''  # 用于缓存可能被截断的开始标签部分
+    pending_end_tag = ''  # 用于缓存可能被截断的结束标签部分
 
     for chunk in res:
         SQLBotLogUtil.info(chunk)
@@ -1700,6 +1701,11 @@ def process_stream(res: Iterator[BaseMessageChunk],
             content = pending_start_tag + content
             pending_start_tag = ''
 
+        # 如果有缓存的结束标签部分，先拼接当前内容
+        if pending_end_tag:
+            content = pending_end_tag + content
+            pending_end_tag = ''
+
         # 检查是否开始思考过程块（处理可能被截断的开始标签）
         if enable_tag_parsing and not in_thinking_block and start_tag:
             if start_tag in content:
@@ -1716,7 +1722,8 @@ def process_stream(res: Iterator[BaseMessageChunk],
                     content = ''
             else:
                 # 检查是否可能有部分开始标签
-                for i in range(1, len(start_tag)):
+                tag_matched = False
+                for i in range(len(start_tag) - 1, 0, -1):
                     if content.endswith(start_tag[:i]):
                         # 只有当当前内容全是空白时才缓存部分标签
                         if content[:-i].strip() == '':
@@ -1724,24 +1731,44 @@ def process_stream(res: Iterator[BaseMessageChunk],
                             content = content[:-i]  # 移除可能的部分标签
                             output_content += content
                             content = ''
-                        break
+                            tag_matched = True
+                            break
+
+                if not tag_matched:
+                    output_content += content
+                    content = ''
 
         # 处理思考块内容
         if enable_tag_parsing and in_thinking_block and end_tag:
             if end_tag in content:
                 # 找到结束标签
                 end_idx = content.index(end_tag)
-                current_thinking += content[:end_idx]  # 收集思考内容
-                reasoning_content_chunk += current_thinking  # 添加到当前块的思考内容
+                thinking_part = content[:end_idx]
+                current_thinking += thinking_part  # 收集思考内容
+                reasoning_content_chunk = thinking_part  # 只返回当前chunk的思考部分
                 content = content[end_idx + len(end_tag):]  # 移除结束标签后的内容
                 current_thinking = ''  # 重置当前思考内容
                 in_thinking_block = False
                 output_content += content  # 输出结束标签之后的内容
             else:
-                # 在遇到结束标签前，持续收集思考内容
-                current_thinking += content
-                reasoning_content_chunk += content
-                content = ''
+                # 检查是否可能有部分结束标签
+                tag_matched = False
+                for i in range(len(end_tag) - 1, 0, -1):
+                    if content.endswith(end_tag[:i]):
+                        # 可能是截断的结束标签
+                        pending_end_tag = end_tag[:i]
+                        thinking_part = content[:-i]
+                        current_thinking += thinking_part
+                        reasoning_content_chunk = thinking_part
+                        content = ''
+                        tag_matched = True
+                        break
+
+                if not tag_matched:
+                    # 确认不是结束标签的一部分，全部作为思考内容
+                    current_thinking += content
+                    reasoning_content_chunk = content
+                    content = ''
 
         else:
             # 不在思考块中或标签解析未启用，正常输出
