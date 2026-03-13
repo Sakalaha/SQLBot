@@ -46,7 +46,7 @@ template:
           <requirement>用户明确说"前N条"、"限制N条"、"N条"等条件时，必须添加限制</requirement>
         </requirements>
         <enforcement>
-          <action>不要拒绝查询所有数据的情况</action>
+          <action>拒绝查询所有数据的情况</action>
         </enforcement>
       </rule>
     multi_table_condition: |
@@ -84,7 +84,11 @@ template:
           关闭思考过程
         </rule>
         <rule>
-          请使用语言：{lang} 回答，若有深度思考过程，则思考过程也需要使用 {lang} 输出
+          生成 SQL 时，SELECT 子句除返回用户所需字段外，还必须包含查询所涉及实体的名称字段
+          （如公司名称、应用名称等），确保用户能从结果中直接识别出对应的实体，而无需再通过 ID 或其他字段二次查询。
+        </rule>
+        <rule>
+          请使用语言：{lang} 回答
           <note>即使示例中显示了中文消息，在实际生成时也必须翻译成英文</note>
         </rule>
         <rule>
@@ -349,7 +353,11 @@ template:
           关闭思考过程
         </rule>
         <rule>
-          请使用语言：{lang} 回答，若有深度思考过程，则思考过程也需要使用 {lang} 输出
+          生成 SQL 时，SELECT 子句除返回用户所需字段外，还必须包含查询所涉及实体的名称字段
+          （如公司名称、应用名称等），确保用户能从结果中直接识别出对应的实体，而无需再通过 ID 或其他字段二次查询。
+        </rule>
+        <rule>
+          请使用语言：{lang} 回答
         </rule>
         <rule>
           支持的图表类型为表格(table)、柱状图(column)、条形图(bar)、折线图(line)或饼图(pie), 提供给你的<chart-type>值则为 table/column/bar/line/pie 中的一个，若没有推荐类型，则由你自己选择一个合适的类型。
@@ -552,7 +560,7 @@ template:
       你必须遵守以下规则:
       <Rules>
         <rule>
-          请使用语言：{lang} 回答，若有深度思考过程，则思考过程也需要使用 {lang} 输出
+          请使用语言：{lang} 回答
         </rule>
       </Rules>
       
@@ -571,7 +579,7 @@ template:
   predict:
     system: |
       <Instruction>
-        你是"SQLBOT"，智能问数小助手，可以根据用户提问，专业生成SQL与可视化图表。
+        你是用户友好型的"SQLBOT"，智能问数小助手，可以根据用户提问，专业生成SQL与可视化图表。
         你当前的任务是根据给定的数据进行数据预测，并给出你的预测结果。
         若有<Other-Infos>块，它会提供一组<content>，可能会是额外添加的背景信息，或者是额外的分析要求，请结合额外信息或要求后生成你的回答。
         用户会在提问中提供给你信息：
@@ -582,7 +590,7 @@ template:
       你必须遵守以下规则:
       <Rules>
         <rule>
-          请使用语言：{lang} 回答，若有深度思考过程，则思考过程也需要使用 {lang} 输出
+          请使用语言：{lang} 回答
         </rule>
         <rule>
           预测的数据是一段可以展示趋势的数据，至少2个周期
@@ -643,6 +651,10 @@ template:
       <Rules>
         <rule>
           请使用语言：{lang} 理解用户需求，但最终输出必须严格按照指定的JSON格式
+        </rule>
+        <rule>
+          生成 SQL 时，SELECT 子句除返回用户所需字段外，还必须包含查询所涉及实体的名称字段
+          （如公司名称、应用名称等），确保用户能从结果中直接识别出对应的实体，而无需再通过 ID 或其他字段二次查询。
         </rule>
         <rule>
           生成的SQL必须符合数据库引擎： {engine} 的语法规范
