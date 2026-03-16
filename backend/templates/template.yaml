@@ -480,7 +480,7 @@ template:
           </example>
           <example>
             <input>
-              <sql>SELECT `s`.`date` AS `date`, `s`.`income` AS `income`, `s`.`expense` AS `expense` FROM `financial_data` `s` ORDER BY `date` ASC LIMIT 1000</sql>
+              <sql>SELECT `s`.`date` AS `date`, `s`.`name` AS `name`, `s`.`income` AS `income`, `s`.`expense` AS `expense` FROM `financial_data` `s` ORDER BY `date` ASC LIMIT 1000</sql>
               <user-question>展示每月的收入与支出</user-question>
               <chart-type> line </chart-type>
             </input>
