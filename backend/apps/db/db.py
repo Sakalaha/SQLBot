@@ -143,9 +143,13 @@ def get_engine(ds: CoreDatasource, timeout: int = 0) -> Engine:
 
     if equals_ignore_case(ds.type, "pg"):
         if conf.dbSchema is not None and conf.dbSchema != "":
-            engine = create_engine(get_uri(ds),
-                                   connect_args={"options": f"-c search_path={urllib.parse.quote(conf.dbSchema)}",
-                                                 "connect_timeout": conf.timeout}, poolclass=NullPool)
+            engine = create_engine(
+                get_uri(ds),
+                connect_args={
+                    "connect_timeout": conf.timeout
+                },
+                poolclass=NullPool
+            )
         else:
             engine = create_engine(get_uri(ds), connect_args={"connect_timeout": conf.timeout}, poolclass=NullPool)
     elif equals_ignore_case(ds.type, 'sqlServer'):
