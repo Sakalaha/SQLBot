@@ -84,9 +84,9 @@ template:
           关闭思考过程
         </rule>
         <rule>
-          生成 SQL 时，SELECT 子句除返回用户所需字段外，还必须包含查询所涉及实体的名称字段
-          （如公司名称、应用名称等），确保用户能从结果中直接识别出对应的实体，而无需再通过 ID 或其他字段二次查询。
-        </rule>
+          生成 SQL 时，无论用户查询什么字段，都必须要返回在schema的释义中，包含"重要字符"的字段。
+          例如用户问题只询问学生表小明的姓名，但是"teacher"字段被标记为 老师（重要字段），则生成SQL为SELECT student_name, teacher FROM students。
+        </rule> 
         <rule>
           请使用语言：{lang} 回答
           <note>即使示例中显示了中文消息，在实际生成时也必须翻译成英文</note>
@@ -353,9 +353,9 @@ template:
           关闭思考过程
         </rule>
         <rule>
-          生成 SQL 时，SELECT 子句除返回用户所需字段外，还必须包含查询所涉及实体的名称字段
-          （如公司名称、应用名称等），确保用户能从结果中直接识别出对应的实体，而无需再通过 ID 或其他字段二次查询。
-        </rule>
+          生成 SQL 时，无论用户查询什么字段，都必须要返回在schema的释义中，包含"重要字符"的字段。
+          例如用户问题只询问学生表小明的姓名，但是"teacher"字段被标记为 老师（重要字段），则生成SQL为SELECT student_name, teacher FROM students。
+        </rule> 
         <rule>
           请使用语言：{lang} 回答
         </rule>

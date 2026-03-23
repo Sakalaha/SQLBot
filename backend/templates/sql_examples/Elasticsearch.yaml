@@ -48,16 +48,23 @@ template:
       9.在 GROUP BY 或 HISTOGRAM 中使用 TIME 数据类型目前不支持将 TIME 类型直接作为分组键（grouping key）。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
     </rule>
     <rule>
-      10.禁止使用JOIN作为关键字。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
+      10， 严禁用 JOIN 作为关键字。当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
     </rule>
     <rule>
-      11.禁止使用Elastic不支持的函数：SPLIT、ARRAY_LENGTH等函数。
+      11. 在任何情况下，严禁使用 Elastic7 不支持的函数：SPLIT、ARRAY_LENGTH、DATE_SUB、DATE_ADD等函数。
       <note>
         当需要分割字符串或处理数组时，请优先考虑以下替代方案：
         1. 使用REPLACE和LENGTH函数组合替代SPLIT：例如计算字符串中点的数量，可用`LENGTH(str) - LENGTH(REPLACE(str, '.', ''))`
         2. 使用正则表达式(REGEXP)进行模式匹配
         3. 使用SUBSTRING和LOCATE组合提取特定部分
         4. 如果以上方法都无法实现，才返回错误
+      </note>
+      <note>
+        当需要进行日期比较操作时，请优先考虑以下方案：
+        1. 获取当前时间
+        2. 确定日期边界。例如用户的问题查询范围如果在本月，则查询日期在本月的1日到下个月的1日。
+        3. 使用 DATE_PARSE 将日期字段及目标时间统一转换为时间戳（毫秒或秒），再进行逻辑比较。
+        4. 如果以上方案无法实现，且必须使用 DATE_SUB、DATE_ADD 的功能，请使用 DATE_PARSE 和时间戳计算替代，或直接返回错误。 
       </note>
       当必须违反这条准则的时候，则返回{{"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构，请检查您的查询语句或简化查询。"}}
     </rule>
@@ -112,10 +119,10 @@ template:
           2. 中英别名/百分比/函数等特殊字段的处理
           3. 关键字冲突的规避方式
       </intro>
-    <example>
+      <example>
         <input>查询用户表 "users" 和订单表 "orders" 中，用户名叫张三的所有订单</input>
         <output-bad>
-          SELECT "o".* FROM "orders" "o" JOIN "users" "u" ON "o"."user_id" = "u"."id" WHERE "u"."name" = '张三'
+          SELECT "o".* FROM "orders" "o" JOIN "users" "u" ON "o"."user_id" = "u"."id" WHERE "u"."name" = '张三' -- 错误：严禁使用 JOIN, LEFT JOIN，RIGHT JOIN 等连表查询关键字
         </output-bad>
         <output-good>
           {"type":"error", "reason": "抱歉，我暂时不支持您查询语句中的某些语法或结构（如 JOIN 关联查询），请检查您的查询语句或简化查询。"}
@@ -150,13 +157,29 @@ template:
         </output-good>
       </example>
       <example>
+        <input>这个月一共有多少人登陆上了本系统？</input>
+        <output-bad>
+            SELECT COUNT(DISTINCT "c_accountid") AS "login_users_count"
+            FROM "wa_annotator_db_t_web_login_log"
+            WHERE "c_result" = 'TRUE'
+              AND DATE_PARSE("c_logtime", 'yyyy/M/d H:m:s') >= DATE_SUB(NOW(), INTERVAL 1 MONTH)   -- 错误1：使用了Elastic SQL 不支持的函数：DATE_SUB
+            LIMIT 1000
+        </output-bad>
+        <output-good>
+        <note>假设已知当前时间是2026年3月20日</note>
+            SELECT COUNT(DISTINCT "c_accountid") AS "login_users_count"
+            FROM "wa_annotator_db_t_web_login_log"
+            WHERE "c_result" = 'TRUE'
+              AND DATE_PARSE("c_logtime", 'yyyy/M/d H:m:s') >= DATE_PARSE('2026-02-20', 'yyyy-MM-dd')
+            LIMIT 1000
+        </output-good>
+      </example>
+      <example>
         <input>查询 logs-* 索引的前100条错误日志（含时间过滤）</input>
         <output-bad>
           SELECT * FROM logs-* WHERE level = 'error' LIMIT 100  -- 错误1：使用星号
           SELECT message FROM "logs-*" WHERE @timestamp > NOW() - 1d  -- 错误2：未转换时间
           SELECT "message", "@timestamp" FROM "logs-*" LIMIT 100  -- 错误3：未处理时间字段
-        </output-bad>
-        <output-good>
           SELECT 
             "l"."message" AS "log_content",
             "l"."host.ip" AS "client_ip",
@@ -164,7 +187,17 @@ template:
           FROM "logs-*" "l"
           WHERE "l"."level" = 'error'
           AND CAST("l"."@timestamp" AS TIMESTAMP) > DATE_SUB(NOW(), INTERVAL 1 DAY)
-          LIMIT 100
+          LIMIT 100                                               -- 错误4：使用了 Elastic SQL 不支持的函数：DATE_SUB
+        </output-bad>
+        <output-good>
+        <note>假设已知当前时间是2025年10月23日</note>
+            SELECT 
+              "l"."message" AS "log_content",
+              TO_CHAR("l"."@timestamp") AS "log_time"
+            FROM "logs-*" "l"
+            WHERE "l"."level" = 'error'
+            AND "l"."@timestamp" > DATE_PARSE('2025-10-23', 'yyyy-M-d')
+            LIMIT 100
         </output-good>
       </example>
       <example>

@@ -628,7 +628,7 @@ def get_es_data_by_http(conf: DatasourceConf, sql: str):
 
     response = requests.post(
         host,
-        data=json.dumps({"page_timeout": "60s", "query": sql}),
+        data=json.dumps({"page_timeout": "600s", "query": sql}),
         headers=get_es_auth(conf),
         timeout=conf.timeout,
         verify=False
